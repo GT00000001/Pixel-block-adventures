@@ -24,7 +24,7 @@ struct GroundBlock {
     int left, top, right, bottom; // 地面块的四个边界坐标
 };
 
-// 定义关卡1的地面块（示例）
+// 定义关卡1的地面块
 std::vector<GroundBlock> level1GroundBlocks = {
     {50, 740, 367, 740},
     {368, 660, 486, 660},
@@ -41,14 +41,14 @@ std::vector<GroundBlock> level1GroundBlocks = {
     // 可以继续添加其他地面块
 };
 
-// 定义关卡2的地面块（示例）
+// 定义关卡2的地面块（未完成）
 std::vector<GroundBlock> level2GroundBlocks = {
     {50, 740, 328, 740},
     {368, 660, 486, 660},
     // 可以继续添加其他地面块
 };
 
-// 定义关卡3的地面块（示例）
+// 定义关卡3的地面块（未完成）
 std::vector<GroundBlock> level3GroundBlocks = {
     {50, 740, 328, 740},
     {368, 660, 486, 660},
@@ -60,7 +60,7 @@ struct WallBlock {
     int left, top, right, bottom; // 墙壁的左右边界和上下边界
 };
 
-// 定义关卡1的墙壁块（示例）
+// 定义关卡1的墙壁块
 std::vector<WallBlock> level1WallBlocks = {
     {50, 419, 50, 740},
     {369, 660, 369, 740},
@@ -80,17 +80,16 @@ std::vector<WallBlock> level1WallBlocks = {
     {270, 160, 270, 280},
     {388, 21, 388, 120},
     {468, 21, 468, 159},
-    // 可以继续添加其他墙壁块
 };
 
-// 定义关卡2的墙壁块（示例）
+// 定义关卡2的墙壁块（未完成）
 std::vector<WallBlock> level2WallBlocks = {
     {400, 420, 580, 740},
     {650, 670, 620, 740},
     // 可以继续添加其他墙壁块
 };
 
-// 定义关卡3的墙壁块（示例）
+// 定义关卡3的墙壁块（未完成）
 std::vector<WallBlock> level3WallBlocks = {
     {400, 420, 580, 740},
     {650, 670, 620, 740},
@@ -102,7 +101,7 @@ struct CeilingBlock {
     int left, top, right, bottom; // 天花板的左右边界和上下边界
 };
 
-// 定义关卡1的天花板块（示例）
+// 定义关卡1的天花板块
 std::vector<CeilingBlock> level1CeilingBlocks = {
     {931, 580, 1050, 580},
     {1091, 498, 1249, 498},
@@ -110,18 +109,17 @@ std::vector<CeilingBlock> level1CeilingBlocks = {
     {229, 278, 269, 278},
     {269, 160, 467, 160},
     {51, 20, 1249, 20},
-    // 可以继续添加其他天花板块
 };
 
 
-// 定义关卡2的天花板块（示例）
+// 定义关卡2的天花板块（未完成）
 std::vector<CeilingBlock> level2CeilingBlocks = {
     {300, 500, 100, 120},
     {600, 700, 200, 220},
     // 可以继续添加其他天花板块
 };
 
-// 定义关卡3的天花板块（示例）
+// 定义关卡3的天花板块（未完成）
 std::vector<CeilingBlock> level3CeilingBlocks = {
     {300, 500, 100, 120},
     {600, 700, 200, 220},
@@ -134,23 +132,22 @@ struct TrapBlock {
     int left, top, right, bottom; // 天花板的左右边界和上下边界
 };
 
-// 定义关卡1的地刺（示例）
+// 定义关卡1的地刺
 std::vector<TrapBlock> level1TrapBlocks = {
     {486,700,526,740},
     {526,700,566,740},
     {566,700,606,740},
     {730,700,770,740},
-    
 };
 
-// 定义关卡2的地刺（示例）
+// 定义关卡2的地刺（未完成）
 std::vector<TrapBlock> level2TrapBlocks = {
-    
+
 };
 
-// 定义关卡3的地刺（示例）
+// 定义关卡3的地刺（未完成）
 std::vector<TrapBlock> level3TrapBlocks = {
-    
+
 };
 
 // 定义通关方块的结构体
@@ -166,7 +163,7 @@ class Player {
 private:
     IMAGE rightImage; // 玩家右移图片
     IMAGE leftImage; // 玩家左移图片
-    int HP=100;//玩家生命值
+    int HP = 100;//玩家生命值
     int x, y; // 玩家位置坐标A
     bool facingRight; // 玩家方向（true为右，false为左）
     bool isJumping = false; // 是否在跳跃中
@@ -180,6 +177,16 @@ private:
 public:
     // 构造函数，初始化玩家位置和方向
     Player(int startX, int startY) : x(startX), y(startY), facingRight(true) {}
+
+    // 设置玩家生命值
+    void setHP(int hp) {
+        HP = hp;
+    }
+
+    // 获取玩家生命值（用于显示）
+    int getHP() const {
+        return HP;
+    }
 
     // 加载玩家图片资源
     void loadResources() {
@@ -195,10 +202,15 @@ public:
         else {
             putimage(x, y, &leftImage); // 绘制左移图片
         }
-        if (HP >= 0)
-        {
-            setfillcolor(RED);
-            fillrectangle(850, 40, 850 + 2 * HP, 80);
+        // 绘制黄色的 HP 数字在屏幕右上角
+        if (HP >= 0) {
+            settextcolor(YELLOW); // 设置字体颜色为黄色
+            setbkmode(TRANSPARENT); // 设置背景模式为透明
+            settextstyle(50, 0, L"微软雅黑"); // 设置字体为微软雅黑，大小为50
+
+            wchar_t hpText[20];
+            swprintf(hpText, 20, L"HP: %d", HP); // 转换 HP 数值为文本
+            outtextxy(850, 40, hpText); // 在屏幕右上角显示 HP 数字
         }
     }
 
@@ -268,7 +280,7 @@ public:
                 if (timecount == 0)//如果CD为零则扣血并重置CD
                 {
                     HP -= trapdamage;
-                    timecount = 60;
+                    timecount = 10;
                 }
                 else
                     timecount--;
@@ -311,10 +323,12 @@ private:
 
     // 判断玩家是否接触地面
     bool isOnGround(const std::vector<GroundBlock>& groundBlocks) {
+        const int groundCollisionBuffer = 5; // 缓冲高度
         for (const auto& block : groundBlocks) {
-            // 检查玩家底部是否位于地面块的顶部
+            // 检查玩家底部是否位于地面块的顶部，允许一些缓冲
             if (x + rightImage.getwidth() > block.left && x < block.right &&
-                y + rightImage.getheight() == block.top) {
+                y + rightImage.getheight() >= block.top - groundCollisionBuffer &&
+                y + rightImage.getheight() <= block.top + groundCollisionBuffer) {
                 return true;
             }
         }
@@ -323,14 +337,17 @@ private:
 
     // 应用重力
     void applyGravity(const std::vector<GroundBlock>& groundBlocks) {
+        const int groundCollisionBuffer = 5; // 缓冲高度
+
         // 让玩家掉落
         y += vy;
         vy += gravity;
 
-        // 检查是否与地面碰撞
+        // 检查是否与地面碰撞，允许一些缓冲
         for (const auto& block : groundBlocks) {
             if (x + rightImage.getwidth() > block.left && x < block.right &&
-                y + rightImage.getheight() >= block.top && y < block.bottom) {
+                y + rightImage.getheight() >= block.top - groundCollisionBuffer &&
+                y < block.bottom) {
                 y = block.top - rightImage.getheight(); // 将玩家停在地面上
                 vy = 0; // 重置垂直速度
                 isJumping = false; // 重置跳跃状态
@@ -599,8 +616,6 @@ public:
     void handleClick(int x, int y, MenuPage& currentPage) override {
         if (buttons[0].isClicked(x, y)) {
             currentPage = MENU1; // 返回主菜单
-
-
         }
         else if (buttons[1].isClicked(x, y)) {
             currentPage = LEVEL_SELECT; // 返回到章节选择
@@ -617,29 +632,29 @@ public:
 
 // 难度选择页面
 class DifficultyPage : public Page {
+private:
+    Player& player; // 引用玩家对象，用于修改 HP 值
+
 public:
-    DifficultyPage() {
+    DifficultyPage(Player& p) : player(p) { // 构造函数接收玩家对象引用
         buttons.push_back(Button(529, 202, 711, 260)); // 返回按钮
-        buttons.push_back(Button(545, 290, 750, 350));//萌新按钮
-        buttons.push_back(Button(545, 381, 750, 445));//入门按钮
-        buttons.push_back(Button(545, 473, 750, 535));//熟练按钮
+        buttons.push_back(Button(545, 290, 750, 350)); // 萌新按钮
+        buttons.push_back(Button(545, 381, 750, 445)); // 入门按钮
+        buttons.push_back(Button(545, 473, 750, 535)); // 熟练按钮
     }
 
     void handleClick(int x, int y, MenuPage& currentPage) override {
         if (buttons[0].isClicked(x, y)) {
             currentPage = MENU1; // 返回到主菜单1
         }
-        if (buttons[1].isClicked(x, y))
-        {
-            
+        if (buttons[1].isClicked(x, y)) { // 萌新难度
+            player.setHP(100); // 设置玩家的 HP 为 100
         }
-        if (buttons[2].isClicked(x, y))
-        {
-
+        if (buttons[2].isClicked(x, y)) { // 入门难度
+            player.setHP(50); // 设置玩家的 HP 为 50
         }
-        if (buttons[3].isClicked(x, y))
-        {
-
+        if (buttons[3].isClicked(x, y)) { // 熟练难度
+            player.setHP(20); // 设置玩家的 HP 为 20
         }
     }
 };
@@ -722,10 +737,11 @@ private:
     Level3MapPage level3Map;     // 关卡3地图页面
     Player player;  // 玩家对象
     IMAGE backgroundImage; // 添加背景图像变量，用于胜利界面
-    VictoryPage victoryPage;
+    VictoryPage victoryPage; // 胜利界面
+
 
 public:
-    Game() : currentPage(MENU1), player(80, 700 - 51) {} // 初始化当前页面为主菜单
+    Game() : currentPage(MENU1), player(80, 700 - 51), difficulty(player) {} // 初始化当前页面为主菜单
 
     // 加载所有页面资源
     void loadResources() {
@@ -925,7 +941,7 @@ public:
 
         while (true) {
             cleardevice(); // 清屏
-            BeginBatchDraw();//双缓存
+            BeginBatchDraw(); // 双缓存
             drawCurrentPage(); // 绘制当前页面
 
             // 如果在胜利页面，跳过玩家位置更新，但保留鼠标事件处理
@@ -968,7 +984,7 @@ public:
                         currentPage = VICTORY_SCREEN; // 切换到胜利界面
                         playBackgroundMusic(L"音乐资源/人间日.wav"); // 确保播放人间日音乐
                         currentVictoryDoor = nullptr; // 重置通关门对象
-                        
+
                     }
                 }
             }
