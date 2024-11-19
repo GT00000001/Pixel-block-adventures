@@ -3,7 +3,9 @@
 #include <mmsystem.h> // 用于播放声音
 #include <string>
 #include <vector>
-
+#include <fstream> 
+#include <sstream>
+#include <iostream>
 #pragma comment(lib, "winmm.lib") // 链接 winmm 库
 
 // 窗口尺寸
@@ -173,10 +175,12 @@ private:
     const int gravity = 1; // 重力加速度
     int jumpCooldown = 0; // 跳跃冷却计时器
     int trapdamage = 10; //陷阱的伤害
+    std::vector<int> clearancetimelevel{ 0,0,0 };
 
 public:
     // 构造函数，初始化玩家位置和方向
     Player(int startX, int startY) : x(startX), y(startY), facingRight(true) {}
+
 
     // 设置玩家生命值
     void setHP(int hp) {
@@ -489,15 +493,26 @@ public:
 
 // 设置选择页面类
 class SettingsPage : public Page {
+private:
+    bool& isMusicOn;
 public:
-    SettingsPage() {
+    SettingsPage(bool& musicOn) : isMusicOn(musicOn) {
         buttons.push_back(Button(534, 199, 711, 260)); // 返回按钮
         buttons.push_back(Button(813, 309, 1008, 378)); // 音乐开关按钮
     }
 
     void handleClick(int x, int y, MenuPage& currentPage) override {
         if (buttons[0].isClicked(x, y)) {
-            currentPage = MENU1; // 返回到主菜单1
+            currentPage = MENU1;
+        }
+        else if (buttons[1].isClicked(x, y)) {
+            isMusicOn = !isMusicOn; // 切换音乐状态
+            if (isMusicOn) {
+                PlaySound(L"音乐资源/人间日.wav", NULL, SND_FILENAME | SND_ASYNC | SND_LOOP);
+            }
+            else {
+                PlaySound(NULL, NULL, 0);
+            }
         }
     }
 };
@@ -597,9 +612,13 @@ public:
 // 通关界面类
 class VictoryPage : public Page {
 private:
-    MenuPage lastMapPage;
+    MenuPage lastMapPage = MENU1; // 初始化为 MENU1，避免未初始化的警告
+    std::vector<IMAGE> imageV;
+
 public:
+    // 设置最近地图页面的方法
     void setLastMapPage(MenuPage mapPage) { lastMapPage = mapPage; }
+
     VictoryPage() {
         // 初始化按钮区域
         buttons.push_back(Button(245, 285, 414, 345)); // 主菜单按钮
@@ -608,8 +627,26 @@ public:
     }
 
     // 加载通关界面的资源
-    void loadResources(const std::wstring& imagePath) override {
+    void loadResourcesV(const std::wstring& imagePath){
         Page::loadResources(imagePath); // 调用基类的加载方法
+        imageV.push_back(backgroundImage);
+    }
+
+    //根据通关时间展示不同的通关胜利界面
+    void drawV(int& seconds)
+    {
+        if (0 <= seconds && seconds <= 30)
+        {
+            putimage((WINDOW_WIDTH - imageV[0].getwidth()) / 2, (WINDOW_HEIGHT - imageV[0].getheight()) / 2, &imageV[0]);
+        }
+        else if (30 < seconds && seconds <= 60)
+        {
+            putimage((WINDOW_WIDTH - imageV[1].getwidth()) / 2, (WINDOW_HEIGHT - imageV[1].getheight()) / 2, &imageV[1]);
+        }
+        else if (60 < seconds)
+        {
+            putimage((WINDOW_WIDTH - imageV[2].getwidth()) / 2, (WINDOW_HEIGHT - imageV[2].getheight()) / 2, &imageV[2]);
+        }
     }
 
     // 处理点击事件
@@ -622,9 +659,22 @@ public:
         }
         else if (buttons[2].isClicked(x, y)) {
             // 进入下一关逻辑
-            if (lastMapPage == LEVEL1_MAP) currentPage = LEVEL2_STORY;
-            else if (lastMapPage == LEVEL2_MAP) currentPage = LEVEL3_STORY;
-            else if (lastMapPage == LEVEL3_MAP) currentPage = LEVEL3_STORY;
+            switch (lastMapPage) {
+            case LEVEL1_MAP:
+                currentPage = LEVEL2_STORY; // 进入关卡2剧情页面
+                break;
+            case LEVEL2_MAP:
+                currentPage = LEVEL3_STORY; // 进入关卡3剧情页面
+                break;
+            case LEVEL3_MAP:
+                // 如果是关卡3，默认可以回到关卡3剧情
+                currentPage = LEVEL3_STORY;
+                break;
+            default:
+                // 防御性编程：如果意外的值，返回主菜单
+                currentPage = MENU1;
+                break;
+            }
         }
     }
 };
@@ -673,17 +723,98 @@ public:
     }
 };
 
-// 排行榜界面
+// 排行榜界面  
 class LeaderboardPage : public Page {
+private:
+    std::vector<int> clearancetime{ 0,0,0 };//记录三个关卡的通关时间，单位为秒
+    const std::string filename = "clearance_times.txt"; // 存储通关时间的文件名
+
+
 public:
+
     LeaderboardPage() {
-        buttons.push_back(Button(515, 180, 790, 240)); // 返回按钮
+        buttons.push_back(Button(515, 180, 790, 240)); // 返回按钮  
     }
 
     void handleClick(int x, int y, MenuPage& currentPage) override {
         if (buttons[0].isClicked(x, y)) {
-            currentPage = MENU2; // 返回主菜单2
+            currentPage = MENU2; // 返回主菜单2  
         }
+    }
+
+    //记录通关时间
+    void recordclearancetime(int& seconds, MenuPage& LEVEL)
+    {
+        switch (LEVEL)
+        {
+        case LEVEL1_MAP:
+            clearancetime[0] = seconds;
+            break;
+        case LEVEL2_MAP:
+            clearancetime[1] = seconds;
+            break;
+        case LEVEL3_MAP:
+            clearancetime[2] = seconds;
+            break;
+        }
+    }
+
+    //更新文件中的排行榜信息
+    void updateleaderboard()
+    {
+        std::vector<int>minimum = readleaderboard();
+        for (int i = 0; i < minimum.size(); i++)
+        {
+            if (clearancetime[i] != 0 && minimum[i] != 0)
+            {
+                if (minimum[i] > clearancetime[i])
+                    minimum[i] = clearancetime[i];
+            }
+            else if (minimum[i] == 0)
+                minimum[i] = clearancetime[i];;
+        }
+        std::ofstream ofile{ "leaderboard.txt", std::ios::out };
+        if (!ofile)
+        {
+            std::cerr << "打开排行榜文件失败" << std::endl;
+            exit(1);
+        }
+        for (int i = 0; i < minimum.size(); i++)
+            ofile << minimum[i] << std::endl;
+        ofile.close();
+    }
+
+    //获取文件中的排行榜信息
+    std::vector<int> readleaderboard()const
+    {
+        std::vector<int>minimum(3, 0);
+        std::ifstream ifile{ "leaderboard.txt", std::ios::in };
+        if (!ifile)
+        {
+            std::cerr << "打开排行榜文件失败" << std::endl;
+            exit(1);
+        }
+        for (int i = 0; i < minimum.size(); i++)
+            ifile >> minimum[i];
+        ifile.close();
+        return minimum;
+    }
+
+    //绘制排行榜的成绩
+    void drawleader()
+    {
+        clearancetime = readleaderboard();
+        for (int i = 0; i < 3; i++)
+        {
+            wchar_t num[4];
+            setcolor(YELLOW);
+            settextstyle(40, 0, L"宋体");
+            setbkmode(TRANSPARENT);
+            swprintf(num, 4, L"%d", clearancetime[i]);
+            outtextxy(800, 280 + i * 80, num);
+            outtextxy(900, 280 + i * 80, L"秒");
+        }
+
     }
 };
 
@@ -741,7 +872,7 @@ private:
 
 
 public:
-    Game() : currentPage(MENU1), player(80, 700 - 51), difficulty(player) {} // 初始化当前页面为主菜单
+    Game() : currentPage(MENU1), player(80, 700 - 51), difficulty(player), settings(isMusicOn) {} // 初始化当前页面为主菜单
 
     // 加载所有页面资源
     void loadResources() {
@@ -758,11 +889,13 @@ public:
         level1Story.loadResources(L"图片资源/关卡1剧情.png");
         level1Map.loadResources(L"图片资源/关卡1地图.jpg");
         level2Story.loadResources(L"图片资源/关卡2剧情.png");
-        level2Map.loadResources(L"图片资源/关卡2地图.jpg");
+        level2Map.loadResources(L"图片资源/关卡2地图.png");
         level3Story.loadResources(L"图片资源/关卡3剧情.png");
         level3Map.loadResources(L"图片资源/关卡3地图.jpg");
         player.loadResources(); // 加载玩家资源
-        victoryPage.loadResources(L"图片资源/胜利界面1.png"); // 加载胜利界面图片
+        victoryPage.loadResourcesV(L"图片资源/胜利界面1.png"); // 加载胜利界面图片
+        victoryPage.loadResourcesV(L"图片资源/胜利界面2.png"); // 加载胜利界面图片
+        victoryPage.loadResourcesV(L"图片资源/胜利界面3.png"); // 加载胜利界面图片
 
     }
 
@@ -821,6 +954,7 @@ public:
             break;
         case LEADERBOARD:
             leaderboard.draw();
+            leaderboard.drawleader();
             break;
         case SHOP:
             shop.draw();
@@ -853,7 +987,7 @@ public:
             player.draw(); // 在地图3绘制玩家
             break;
         case VICTORY_SCREEN: // 通关界面
-            victoryPage.draw();
+            victoryPage.drawV(seconds);
             break;
         }
     }
@@ -927,29 +1061,52 @@ public:
         outtextxy(10, 10, coords.c_str());
     }
 
+    //关卡开始时记录开始时间
+    void timeRecordStart(bool& levelStarted, DWORD& startTime, MenuPage& currentPage)
+    {
+        if (!levelStarted && (currentPage == LEVEL1_MAP || currentPage == LEVEL2_MAP || currentPage == LEVEL3_MAP)) {
+            startTime = GetTickCount(); // 记录开始时间  
+            levelStarted = true; // 设置关卡已开始标志  
+        }
+    }
+
+    void calculateTimeElapsed(int& seconds, DWORD& startTime, MenuPage& currentPage)
+    {
+        if (currentPage == LEVEL1_MAP || currentPage == LEVEL2_MAP || currentPage == LEVEL3_MAP)
+        {
+            // 计算并显示时间  
+            DWORD elapsedTime = GetTickCount() - startTime; // 计算经过的时间  
+            seconds = elapsedTime / 1000; // 转换为秒  
+            // 在屏幕上显示经过的时间  
+            std::wstring timeText = L"时间: " + std::to_wstring(seconds) + L"秒";
+            outtextxy(10, 10, timeText.c_str()); // 在指定位置绘制时间文本
+        }
+    }
+
     //游戏主循环
     void run() {
-        initgraph(WINDOW_WIDTH, WINDOW_HEIGHT); // 初始化图形窗口
-        loadResources(); // 加载资源
-        playBackgroundMusic(L"音乐资源/人间日.wav"); // 初始播放默认音乐
+        initgraph(WINDOW_WIDTH, WINDOW_HEIGHT); // 初始化图形窗口  
+        loadResources(); // 加载资源  
+        playBackgroundMusic(L"音乐资源/人间日.wav"); // 初始播放默认音乐  
 
         std::vector<GroundBlock>* currentGroundBlocks = nullptr;
         std::vector<WallBlock>* currentWallBlocks = nullptr;
         std::vector<CeilingBlock>* currentCeilingBlocks = nullptr;
         std::vector<TrapBlock>* currentTrapBlocks = nullptr;
-        VictoryDoor* currentVictoryDoor = nullptr; // 当前关卡的通关门
+        VictoryDoor* currentVictoryDoor = nullptr; // 当前关卡的通关门  
 
+        
         while (true) {
-            cleardevice(); // 清屏
-            BeginBatchDraw(); // 双缓存
-            drawCurrentPage(); // 绘制当前页面
+            cleardevice(); // 清屏  
+            BeginBatchDraw(); // 双缓存  
+            drawCurrentPage(); // 绘制当前页面  
 
-            // 如果在胜利页面，跳过玩家位置更新，但保留鼠标事件处理
+            // 如果在胜利页面，跳过玩家位置更新，但保留鼠标事件处理  
             if (currentPage == VICTORY_SCREEN) {
-                victoryPage.draw(); // 绘制胜利界面
+                victoryPage.drawV(seconds); // 绘制胜利界面  
             }
             else {
-                // 根据当前页面选择地图地面块、墙壁块、天花板块和通关门
+                // 根据当前页面选择地图地面块、墙壁块、天花板块和通关门  
                 if (currentPage == LEVEL1_MAP) {
                     currentGroundBlocks = &level1GroundBlocks;
                     currentWallBlocks = &level1WallBlocks;
@@ -972,25 +1129,35 @@ public:
                     currentVictoryDoor = &level3VictoryDoor;
                 }
 
-                // 更新和绘制玩家
+                // 关卡开始时记录时间  
+                timeRecordStart(levelStarted, startTime, currentPage);
+                // 计算当前关卡已经过的时间并展示
+                calculateTimeElapsed(seconds, startTime, currentPage);
+                // 更新和绘制玩家  
                 if (currentGroundBlocks && currentWallBlocks && currentCeilingBlocks && currentTrapBlocks &&
                     (currentPage == LEVEL1_MAP || currentPage == LEVEL2_MAP || currentPage == LEVEL3_MAP)) {
                     player.update(*currentGroundBlocks, *currentWallBlocks, *currentCeilingBlocks, *currentTrapBlocks);
                     player.draw();
 
+                    // 检查胜利条件  
                     if (currentVictoryDoor && player.checkVictory(*currentVictoryDoor)) {
-                        player.resetPosition(); // 通关时重置玩家位置
-                        victoryPage.setLastMapPage(currentPage); // 设置当前地图页面
-                        currentPage = VICTORY_SCREEN; // 切换到胜利界面
-                        playBackgroundMusic(L"音乐资源/人间日.wav"); // 确保播放人间日音乐
-                        currentVictoryDoor = nullptr; // 重置通关门对象
+                        player.resetPosition(); // 通关时重置玩家位置  
+                        victoryPage.setLastMapPage(currentPage); // 设置当前地图页面   
+                        playBackgroundMusic(L"音乐资源/人间日.wav"); // 确保播放人间日音乐  
+                        currentVictoryDoor = nullptr; // 重置通关门对象  
+                        levelStarted = false; // 重置关卡开始标志
+                        leaderboard.recordclearancetime(seconds, currentPage);
+                        leaderboard.updateleaderboard();
+                        currentPage = VICTORY_SCREEN; // 切换到胜利界面 
 
                     }
                 }
+
+
             }
             EndBatchDraw();
 
-            // 检查是否有鼠标事件
+            // 检查是否有鼠标事件  
             if (MouseHit()) {
                 MOUSEMSG msg = GetMouseMsg();
                 displayMouseCoordinates(msg.x, msg.y);
@@ -1000,11 +1167,17 @@ public:
                 }
             }
 
-            Sleep(5); // 控制刷新频率
+            Sleep(5); // 控制刷新频率  
         }
-        closegraph(); // 关闭图形窗口
-        PlaySound(NULL, NULL, 0); // 停止播放音乐
+        closegraph(); // 关闭图形窗口  
+        PlaySound(NULL, NULL, 0); // 停止播放音乐  
     }
+private:
+    // 添加计时相关的变量  
+    DWORD startTime = 0; // 关卡开始时间  
+    int seconds = 0;//记录关卡时间
+    bool levelStarted = false; // 标记关卡是否已经开始  
+
 };
 
 // 主函数
