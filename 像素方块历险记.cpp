@@ -41,6 +41,7 @@ std::vector<GroundBlock> level1GroundBlocks = {
 	{1010, 380, 1048, 380},
 	{130, 340, 1009, 340},
 	{229, 120, 387, 120},
+	{532,302,572,342}
 };
 
 // 定义关卡2的地面块
@@ -116,6 +117,7 @@ std::vector<WallBlock> level1WallBlocks = {
 	{270, 160, 270, 280},
 	{388, 21, 388, 120},
 	{468, 21, 468, 159},
+	{532,302,572,342}
 };
 
 // 定义关卡2的墙壁块
@@ -268,6 +270,31 @@ std::vector<TrapBlock> level3TrapBlocks = {
 	{168, 140, 250, 179},
 };
 
+// 定义宝箱的结构体
+struct TreasureBlock {
+	int left, top, right, bottom; // 陷阱的左右边界和上下边界
+	bool isclose = true;
+};
+
+//定义关卡1的宝箱
+std::vector<TreasureBlock> level1TreasureBlocks =
+{
+	{532,302,572,342}
+};
+
+//定义关卡2的宝箱
+std::vector<TreasureBlock> level2TreasureBlocks =
+{
+
+};
+
+//定义关卡3的宝箱
+std::vector<TreasureBlock> level3TreasureBlocks =
+{
+
+};
+
+
 // 定义通关方块的结构体
 struct VictoryDoor {
 	int left, top, right, bottom; // 通关方块的左右边界和上下边界
@@ -291,7 +318,7 @@ private:
 	const int gravity = 1; // 重力加速度
 	int jumpCooldown = 0; // 跳跃冷却计时器
 	int trapdamage = 10; //陷阱的伤害
-	std::vector<int> clearancetimelevel{ 0,0,0 };
+	int treasures = 0;//玩家获得宝箱的数量
 
 public:
 	// 构造函数，初始化玩家位置和方向
@@ -352,8 +379,17 @@ public:
 			y < door.bottom;
 	}
 
+	//获取玩家获得宝箱的数量
+	int getTreasure()const
+	{
+		return treasures;
+	}
+
 	// 更新玩家位置（加入墙壁和天花板检测）
-	void update(const std::vector<GroundBlock>& groundBlocks, const std::vector<WallBlock>& wallBlocks, const std::vector<CeilingBlock>& ceilingBlocks, const std::vector<TrapBlock>& trapBlocks) {
+	void update(const std::vector<GroundBlock>& groundBlocks, const std::vector<WallBlock>& wallBlocks, 
+		const std::vector<CeilingBlock>& ceilingBlocks, const std::vector<TrapBlock>& trapBlocks, std::vector<TreasureBlock>* treasureBlocks) {
+
+
 		int originalX = x; // 记录更新前的X坐标
 
 		// 左右移动
@@ -412,6 +448,21 @@ public:
 		if (!iscontactTrap)
 			timecount = 0;
 
+		//判断是否与宝箱交互,按'E'表示玩家想要与宝箱交互
+		if (GetAsyncKeyState('E') & 0x8000) {
+			
+			//判断玩家是否在可与宝箱交互的范围内
+			for ( auto& treasure : *treasureBlocks)
+			{
+				if (x + rightImage.getwidth() + 6> treasure.left && x < treasure.right + 6 &&
+					y+rightImage.getheight()-6 < treasure.bottom && treasure.isclose)
+					{
+						treasures++;
+						treasure.isclose = false;
+					}
+			}
+		}
+
 		// 跳跃和二段跳
 		if (GetAsyncKeyState('W') & 0x8000) {
 			jump();
@@ -439,20 +490,6 @@ private:
 			vy = jumpPower; // 设置跳跃力
 			doubleJumpAvailable = false; // 禁用二段跳
 		}
-	}
-
-	// 判断玩家是否接触地面
-	bool isOnGround(const std::vector<GroundBlock>& groundBlocks) {
-		const int groundCollisionBuffer = 5; // 缓冲高度
-		for (const auto& block : groundBlocks) {
-			// 检查玩家底部是否位于地面块的顶部，允许一些缓冲
-			if (x + rightImage.getwidth() > block.left && x < block.right &&
-				y + rightImage.getheight() >= block.top - groundCollisionBuffer &&
-				y + rightImage.getheight() <= block.top + groundCollisionBuffer) {
-				return true;
-			}
-		}
-		return false;
 	}
 
 	// 应用重力
@@ -1027,6 +1064,8 @@ private:
 	IMAGE backgroundImage; // 添加背景图像变量，用于胜利界面
 	VictoryPage victoryPage; // 胜利界面
 	FailPage failPage; //失败页面
+	IMAGE treasureclose;//宝箱关闭
+	IMAGE treasureopen;//宝箱打开
 
 
 public:
@@ -1055,6 +1094,8 @@ public:
 		victoryPage.loadResourcesV(L"图片资源/胜利界面2.png"); // 加载胜利界面图片
 		victoryPage.loadResourcesV(L"图片资源/胜利界面3.png"); // 加载胜利界面图片
 		failPage.loadResources(L"图片资源/失败界面1.png");
+		loadimage(&treasureclose,L"图片资源/宝箱关闭.png",40,40);
+		loadimage(&treasureopen,L"图片资源/宝箱打开.png",40,40);
 
 	}
 
@@ -1257,19 +1298,30 @@ public:
 			BeginBatchDraw(); // 双缓存  
 			cleardevice();
 			drawCurrentPage();
+			//绘制宝箱
+			for (auto& treasure : *currentTreasureBlocks)
+			{
+				if (treasure.isclose)
+				{
+					putimage(treasure.left, treasure.top, &treasureclose); // 绘制宝箱关闭
+				}
+				else
+				{
+					putimage(treasure.left, treasure.top, &treasureopen); // 绘制宝箱开启
+				}
+			}
 			// 关卡开始时记录时间  
 			timeRecordStart(levelStarted, startTime, currentPage);
 			// 计算当前关卡已经过的时间并展示
 			calculateTimeElapsed(seconds, startTime, currentPage);
 			// 更新和绘制玩家  
-			player.update(*currentGroundBlocks, *currentWallBlocks, *currentCeilingBlocks, *currentTrapBlocks);
+			player.update(*currentGroundBlocks, *currentWallBlocks, *currentCeilingBlocks, *currentTrapBlocks, currentTreasureBlocks);
 			player.draw();
 
 			// 检查是否有鼠标事件  
 			if (MouseHit()) {
 				MOUSEMSG msg = GetMouseMsg();
 				if (msg.uMsg == WM_LBUTTONDOWN) {
-					handleMouseClick(msg.x, msg.y);
 					std::cout << msg.x << "," << msg.y << std::endl;
 				}
 			}
@@ -1315,6 +1367,7 @@ public:
 				currentCeilingBlocks = &level1CeilingBlocks;
 				currentTrapBlocks = &level1TrapBlocks;
 				currentVictoryDoor = &level1VictoryDoor;
+				currentTreasureBlocks = &level1TreasureBlocks;
 				inTheGame();
 			}
 			else if (currentPage == LEVEL2_MAP) {
@@ -1323,6 +1376,7 @@ public:
 				currentCeilingBlocks = &level2CeilingBlocks;
 				currentTrapBlocks = &level2TrapBlocks;
 				currentVictoryDoor = &level2VictoryDoor;
+				currentTreasureBlocks = &level2TreasureBlocks;
 				inTheGame();
 			}
 			else if (currentPage == LEVEL3_MAP) {
@@ -1331,6 +1385,7 @@ public:
 				currentCeilingBlocks = &level3CeilingBlocks;
 				currentTrapBlocks = &level3TrapBlocks;
 				currentVictoryDoor = &level3VictoryDoor;
+				currentTreasureBlocks = &level3TreasureBlocks;
 				inTheGame();
 			}
 			BeginBatchDraw(); // 双缓存
@@ -1360,6 +1415,7 @@ private:
 	std::vector<WallBlock>* currentWallBlocks = nullptr;
 	std::vector<CeilingBlock>* currentCeilingBlocks = nullptr;
 	std::vector<TrapBlock>* currentTrapBlocks = nullptr;
+	std::vector<TreasureBlock>* currentTreasureBlocks = nullptr;
 	VictoryDoor* currentVictoryDoor = nullptr; // 当前关卡的通关门  
 };
 
