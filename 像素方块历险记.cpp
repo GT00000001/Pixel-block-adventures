@@ -1,3 +1,4 @@
+#include <algorithm> 
 #include <graphics.h> // 使用EasyX图形库
 #include <windows.h>
 #include <mmsystem.h> // 用于播放声音
@@ -294,6 +295,29 @@ std::vector<TreasureBlock> level3TreasureBlocks =
 
 };
 
+//定义回复方块的结构体
+struct HealBlock {
+	int left, top, right, bottom; // 方块的边界
+	int healAmount;              // 每帧恢复的生命值
+};
+
+//定义关卡3的回复方块
+std::vector<HealBlock> level3HealBlocks =
+{
+	{729, 687, 768, 732, 10},
+};
+
+//定义传送方块的结构体
+struct TeleportBlock {
+	int x1, y1, x2, y2;           // 第一个传送区域（A）
+	int targetX1, targetY1, targetX2, targetY2; // 第二个传送区域（B）
+};
+
+//定义关卡3的传送方块
+std::vector<TeleportBlock> level3TeleportBlocks = {
+	{902, 28, 958, 99,
+	256, 552, 320, 610},  // A 和 B 互通
+};
 
 // 定义通关方块的结构体
 struct VictoryDoor {
@@ -307,27 +331,31 @@ VictoryDoor level3VictoryDoor = { 1185, 68, 1229, 134 };
 class Player {
 private:
 	IMAGE rightImage; // 玩家右移图片
-	IMAGE leftImage; // 玩家左移图片
-	int HP = 100;//玩家生命值
-	int x, y; // 玩家位置坐标A
+	IMAGE leftImage;  // 玩家左移图片
+	int HP = 100;     // 玩家当前生命值
+	int maxHP = 100;  // 玩家最大生命值
+	int x, y;         // 玩家位置坐标
 	bool facingRight; // 玩家方向（true为右，false为左）
 	bool isJumping = false; // 是否在跳跃中
 	bool doubleJumpAvailable = true; // 是否可以进行二段跳
 	int vy = 0; // 垂直速度
 	const int jumpPower = -15; // 跳跃的初始速度
-	const int gravity = 1; // 重力加速度
-	int jumpCooldown = 0; // 跳跃冷却计时器
-	int trapdamage = 10; //陷阱的伤害
-	int treasures = 0;//玩家获得宝箱的数量
+	const int gravity = 1;     // 重力加速度
+	int jumpCooldown = 0;      // 跳跃冷却计时器
+	int trapdamage = 10;       // 陷阱的伤害
+	int treasures = 0;         // 玩家获得宝箱的数量
+	int healCooldown = 0; // 回复冷却时间
+	int teleportCooldown = 0; // 传送冷却计时器，初始为 0 表示可以传送
+	const int maxTeleportCooldown = 100; // 冷却时间（单位：帧）
 
 public:
 	// 构造函数，初始化玩家位置和方向
 	Player(int startX, int startY) : x(startX), y(startY), facingRight(true) {}
 
-
-	// 设置玩家生命值
+	// 设置玩家生命值，并更新最大生命值
 	void setHP(int hp) {
 		HP = hp;
+		maxHP = hp; // 更新最大生命值
 	}
 
 	// 获取玩家生命值（用于显示）
@@ -335,10 +363,15 @@ public:
 		return HP;
 	}
 
+	// 恢复生命值，不能超过最大值
+	void heal(int amount) {
+		HP = min(HP + amount, maxHP);
+	}
+
 	// 加载玩家图片资源
 	void loadResources() {
 		loadimage(&rightImage, L"图片资源/右移.png"); // 加载“右移”图片
-		loadimage(&leftImage, L"图片资源/左移.png"); // 加载“左移”图片
+		loadimage(&leftImage, L"图片资源/左移.png");  // 加载“左移”图片
 	}
 
 	// 绘制玩家
@@ -351,20 +384,20 @@ public:
 		}
 		// 绘制黄色的 HP 数字在屏幕右上角
 		if (HP >= 0) {
-			settextcolor(YELLOW); // 设置字体颜色为黄色
-			setbkmode(TRANSPARENT); // 设置背景模式为透明
+			settextcolor(YELLOW);          // 设置字体颜色为黄色
+			setbkmode(TRANSPARENT);        // 设置背景模式为透明
 			settextstyle(50, 0, L"微软雅黑"); // 设置字体为微软雅黑，大小为50
 
 			wchar_t hpText[20];
-			swprintf(hpText, 20, L"HP: %d", HP); // 转换 HP 数值为文本
+			swprintf(hpText, 20, L"HP: %d / %d", HP, maxHP); // 转换 HP 数值为文本
 			outtextxy(850, 40, hpText); // 在屏幕右上角显示 HP 数字
 		}
 	}
 
-	//重置位置的函数
+	// 重置位置的函数
 	void resetPosition() {
-		HP = 100;
-		x = 80; // 默认的 x 坐标
+		HP = maxHP; // 恢复到最大生命值
+		x = 80;     // 默认的 x 坐标
 		y = 700 - 51; // 默认的 y 坐标
 		isJumping = false; // 重置跳跃状态
 		doubleJumpAvailable = true; // 重置二段跳
@@ -379,16 +412,16 @@ public:
 			y < door.bottom;
 	}
 
-	//获取玩家获得宝箱的数量
-	int getTreasure()const
-	{
+	// 获取玩家获得宝箱的数量
+	int getTreasure() const {
 		return treasures;
 	}
 
-	// 更新玩家位置（加入墙壁和天花板检测）
-	void update(const std::vector<GroundBlock>& groundBlocks, const std::vector<WallBlock>& wallBlocks, 
-		const std::vector<CeilingBlock>& ceilingBlocks, const std::vector<TrapBlock>& trapBlocks, std::vector<TreasureBlock>* treasureBlocks) {
-
+	// 更新玩家位置（加入墙壁、天花板、陷阱、宝箱和回复方块的检测）
+	void update(const std::vector<GroundBlock>& groundBlocks, const std::vector<WallBlock>& wallBlocks,
+		const std::vector<CeilingBlock>& ceilingBlocks, const std::vector<TrapBlock>& trapBlocks,
+		std::vector<TreasureBlock>* treasureBlocks, const std::vector<HealBlock>& healBlocks,
+		const std::vector<TeleportBlock>& teleportBlocks) {
 
 		int originalX = x; // 记录更新前的X坐标
 
@@ -415,51 +448,85 @@ public:
 
 		// 检查天花板碰撞，仅在玩家接触到天花板块底部区域时
 		for (const auto& ceiling : ceilingBlocks) {
-			// 允许一些微小进入，避免直接阻挡上升
-			int ceilingCollisionBuffer = 5; // 可以调整的缓冲高度
+			int ceilingCollisionBuffer = 5; // 缓冲高度
 			if (vy < 0 && x + rightImage.getwidth() > ceiling.left && x < ceiling.right &&
 				y < ceiling.bottom && y + rightImage.getheight() >= ceiling.bottom - ceilingCollisionBuffer) {
-				// 仅在靠近天花板底部一定范围时触发
 				y = ceiling.bottom; // 将玩家停在天花板下方
-				vy = 0; // 停止向上移动
+				vy = 0;             // 停止向上移动
 				break;
 			}
 		}
 
 		// 检查地刺碰撞
-		static int timecount = 0;//陷阱造成伤害的CD
-		bool iscontactTrap = false;//记录是否与陷阱接触
+		static int timecount = 0; // 陷阱造成伤害的CD
+		bool iscontactTrap = false; // 记录是否与陷阱接触
 		for (const auto& trap : trapBlocks) {
 			if (x + rightImage.getwidth() > trap.left && x < trap.right &&
 				y + rightImage.getheight() > trap.top && y < trap.bottom) {
-				//如果触碰到陷阱，进行扣血
-				if (timecount == 0)//如果CD为零则扣血并重置CD
-				{
+				if (timecount == 0) { // 如果CD为零则扣血并重置CD
 					HP -= trapdamage;
 					timecount = 10;
 				}
-				else
+				else {
 					timecount--;
+				}
 				iscontactTrap = true;
 				break;
 			}
 		}
-		//如果没有和陷阱接触，那么陷阱造成伤害的CD归零
-		if (!iscontactTrap)
-			timecount = 0;
+		if (!iscontactTrap) timecount = 0;
 
-		//判断是否与宝箱交互,按'E'表示玩家想要与宝箱交互
+		// 检查宝箱交互
 		if (GetAsyncKeyState('E') & 0x8000) {
-			
-			//判断玩家是否在可与宝箱交互的范围内
-			for ( auto& treasure : *treasureBlocks)
-			{
-				if (x + rightImage.getwidth() + 6> treasure.left && x < treasure.right + 6 &&
-					y+rightImage.getheight()-6 < treasure.bottom && treasure.isclose)
-					{
-						treasures++;
-						treasure.isclose = false;
-					}
+			for (auto& treasure : *treasureBlocks) {
+				if (x + rightImage.getwidth() + 6 > treasure.left && x < treasure.right + 6 &&
+					y + rightImage.getheight() - 6 < treasure.bottom && treasure.isclose) {
+					treasures++;
+					treasure.isclose = false;
+				}
+			}
+		}
+
+		// 检查回复方块
+		for (const auto& healBlock : healBlocks) {
+			if (x + rightImage.getwidth() > healBlock.left && x < healBlock.right &&
+				y + rightImage.getheight() > healBlock.top && y < healBlock.bottom) {
+				if (healCooldown == 0) { // 只有冷却时间为 0 时才允许回复
+					heal(healBlock.healAmount); // 调用 heal 函数恢复生命值
+					healCooldown = 10;         // 设置冷却时间为 10 帧
+				}
+				else {
+					healCooldown--;
+				}
+				break;
+			}
+		}
+
+		// 逐帧减少冷却时间
+		if (teleportCooldown > 0) {
+			teleportCooldown--; // 冷却计时递减
+		}
+
+		// 检查传送方块碰撞
+		for (const auto& teleport : teleportBlocks) {
+			// 如果玩家在 A 区域，传送到 B 区域，并且冷却结束
+			if (teleportCooldown == 0 &&
+				x + rightImage.getwidth() > teleport.x1 && x < teleport.x2 &&
+				y + rightImage.getheight() > teleport.y1 && y < teleport.y2) {
+				x = (teleport.targetX1 + teleport.targetX2) / 2; // 传送到 B 的中心位置
+				y = (teleport.targetY1 + teleport.targetY2) / 2;
+				teleportCooldown = maxTeleportCooldown; // 重置冷却时间
+				break;
+			}
+
+			// 如果玩家在 B 区域，传送到 A 区域，并且冷却结束
+			if (teleportCooldown == 0 &&
+				x + rightImage.getwidth() > teleport.targetX1 && x < teleport.targetX2 &&
+				y + rightImage.getheight() > teleport.targetY1 && y < teleport.targetY2) {
+				x = (teleport.x1 + teleport.x2) / 2; // 传送到 A 的中心位置
+				y = (teleport.y1 + teleport.y2) / 2;
+				teleportCooldown = maxTeleportCooldown; // 重置冷却时间
+				break;
 			}
 		}
 
@@ -484,10 +551,10 @@ private:
 			isJumping = true;
 			vy = jumpPower; // 设置跳跃力
 			doubleJumpAvailable = true; // 启用二段跳
-			jumpCooldown = 20; // 设置跳跃冷却时间（比如20帧）
+			jumpCooldown = 20;          // 设置跳跃冷却时间（比如20帧）
 		}
 		else if (doubleJumpAvailable && jumpCooldown == 0) { // 二段跳，且没有冷却
-			vy = jumpPower; // 设置跳跃力
+			vy = jumpPower;         // 设置跳跃力
 			doubleJumpAvailable = false; // 禁用二段跳
 		}
 	}
@@ -506,8 +573,8 @@ private:
 				y + rightImage.getheight() >= block.top - groundCollisionBuffer &&
 				y < block.bottom) {
 				y = block.top - rightImage.getheight(); // 将玩家停在地面上
-				vy = 0; // 重置垂直速度
-				isJumping = false; // 重置跳跃状态
+				vy = 0;              // 重置垂直速度
+				isJumping = false;   // 重置跳跃状态
 				doubleJumpAvailable = true; // 恢复二段跳
 				break;
 			}
@@ -1094,8 +1161,8 @@ public:
 		victoryPage.loadResourcesV(L"图片资源/胜利界面2.png"); // 加载胜利界面图片
 		victoryPage.loadResourcesV(L"图片资源/胜利界面3.png"); // 加载胜利界面图片
 		failPage.loadResources(L"图片资源/失败界面1.png");
-		loadimage(&treasureclose,L"图片资源/宝箱关闭.png",40,40);
-		loadimage(&treasureopen,L"图片资源/宝箱打开.png",40,40);
+		loadimage(&treasureclose, L"图片资源/宝箱关闭.png", 40, 40);
+		loadimage(&treasureopen, L"图片资源/宝箱打开.png", 40, 40);
 
 	}
 
@@ -1315,7 +1382,8 @@ public:
 			// 计算当前关卡已经过的时间并展示
 			calculateTimeElapsed(seconds, startTime, currentPage);
 			// 更新和绘制玩家  
-			player.update(*currentGroundBlocks, *currentWallBlocks, *currentCeilingBlocks, *currentTrapBlocks, currentTreasureBlocks);
+			player.update(*currentGroundBlocks, *currentWallBlocks, *currentCeilingBlocks,
+				*currentTrapBlocks, currentTreasureBlocks, *currentHealBlocks, *currentTeleportBlocks);
 			player.draw();
 
 			// 检查是否有鼠标事件  
@@ -1386,6 +1454,8 @@ public:
 				currentTrapBlocks = &level3TrapBlocks;
 				currentVictoryDoor = &level3VictoryDoor;
 				currentTreasureBlocks = &level3TreasureBlocks;
+				currentHealBlocks = &level3HealBlocks; // 加载关卡3的回复方块
+				currentTeleportBlocks = &level3TeleportBlocks; // 加载关卡3的传送门
 				inTheGame();
 			}
 			BeginBatchDraw(); // 双缓存
@@ -1417,6 +1487,8 @@ private:
 	std::vector<TrapBlock>* currentTrapBlocks = nullptr;
 	std::vector<TreasureBlock>* currentTreasureBlocks = nullptr;
 	VictoryDoor* currentVictoryDoor = nullptr; // 当前关卡的通关门  
+	std::vector<HealBlock>* currentHealBlocks = nullptr; // 当前关卡的 HealBlock
+	std::vector<TeleportBlock>* currentTeleportBlocks = nullptr;
 };
 
 // 主函数
