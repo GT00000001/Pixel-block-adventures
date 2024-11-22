@@ -20,7 +20,7 @@ enum MenuPage {
 	CROSSING_STORY, LEVEL1_STORY, LEVEL1_MAP,
 	LEVEL2_STORY, LEVEL2_MAP, LEVEL3_STORY, LEVEL3_MAP,
 	VICTORY_SCREEN, // 添加 VICTORY_SCREEN
-	FAIL
+	FAIL,GOODEND,BADEND1,BADEND2,PAUSE
 };
 
 // 定义地面块的结构体
@@ -42,7 +42,6 @@ std::vector<GroundBlock> level1GroundBlocks = {
 	{1010, 380, 1048, 380},
 	{130, 340, 1009, 340},
 	{229, 120, 387, 120},
-	{532,302,572,342}
 };
 
 // 定义关卡2的地面块
@@ -65,6 +64,9 @@ std::vector<GroundBlock> level2GroundBlocks = {
 	{972, 101, 1010, 101},
 	{1052, 101, 1091, 101},
 	{1171, 101, 1249, 101},
+	{393, 262, 433, 302},
+	{593, 262, 633, 302},
+	{818, 262, 858, 302},
 };
 
 // 定义关卡3的地面块
@@ -118,7 +120,6 @@ std::vector<WallBlock> level1WallBlocks = {
 	{270, 160, 270, 280},
 	{388, 21, 388, 120},
 	{468, 21, 468, 159},
-	{532,302,572,342}
 };
 
 // 定义关卡2的墙壁块
@@ -150,6 +151,9 @@ std::vector<WallBlock> level2WallBlocks = {
 	{1010, 102, 1010, 139},
 	{1051, 102, 1051, 138},
 	{1090, 102, 1090, 138},
+	{393, 262, 433, 302},
+	{593, 262, 633, 302},
+	{818, 262, 858, 302},
 };
 
 // 定义关卡3的墙壁块
@@ -280,13 +284,15 @@ struct TreasureBlock {
 //定义关卡1的宝箱
 std::vector<TreasureBlock> level1TreasureBlocks =
 {
-	{532,302,572,342}
+	
 };
 
 //定义关卡2的宝箱
 std::vector<TreasureBlock> level2TreasureBlocks =
 {
-
+	{393, 262, 433, 302},
+	{593, 262, 633, 302},
+	{818, 262, 858, 302},
 };
 
 //定义关卡3的宝箱
@@ -301,16 +307,40 @@ struct HealBlock {
 	int healAmount;              // 每帧恢复的生命值
 };
 
+//定义关卡1的回复方块
+std::vector<HealBlock> level1HealBlocks =
+{
+
+};
+
+
+//定义关卡3的回复方块
+std::vector<HealBlock> level2HealBlocks =
+{
+
+};
+
 //定义关卡3的回复方块
 std::vector<HealBlock> level3HealBlocks =
 {
 	{729, 687, 768, 732, 10},
 };
 
+
 //定义传送方块的结构体
 struct TeleportBlock {
 	int x1, y1, x2, y2;           // 第一个传送区域（A）
 	int targetX1, targetY1, targetX2, targetY2; // 第二个传送区域（B）
+};
+
+//定义关卡1的传送方块
+std::vector<TeleportBlock> level1TeleportBlocks = {
+
+};
+
+//定义关卡2的传送方块
+std::vector<TeleportBlock> level2TeleportBlocks = {
+
 };
 
 //定义关卡3的传送方块
@@ -417,6 +447,11 @@ public:
 		return treasures;
 	}
 
+	void resetTrapDamage(int damage)
+	{
+		trapdamage = damage;
+	}
+
 	// 更新玩家位置（加入墙壁、天花板、陷阱、宝箱和回复方块的检测）
 	void update(const std::vector<GroundBlock>& groundBlocks, const std::vector<WallBlock>& wallBlocks,
 		const std::vector<CeilingBlock>& ceilingBlocks, const std::vector<TrapBlock>& trapBlocks,
@@ -487,7 +522,7 @@ public:
 			}
 		}
 
-		// 检查回复方块
+		//检查回复方块
 		for (const auto& healBlock : healBlocks) {
 			if (x + rightImage.getwidth() > healBlock.left && x < healBlock.right &&
 				y + rightImage.getheight() > healBlock.top && y < healBlock.bottom) {
@@ -502,12 +537,12 @@ public:
 			}
 		}
 
-		// 逐帧减少冷却时间
+		//逐帧减少冷却时间
 		if (teleportCooldown > 0) {
 			teleportCooldown--; // 冷却计时递减
 		}
 
-		// 检查传送方块碰撞
+		 //检查传送方块碰撞
 		for (const auto& teleport : teleportBlocks) {
 			// 如果玩家在 A 区域，传送到 B 区域，并且冷却结束
 			if (teleportCooldown == 0 &&
@@ -834,12 +869,13 @@ class VictoryPage : public Page {
 private:
 	MenuPage lastMapPage = MENU1; // 初始化为 MENU1，避免未初始化的警告
 	std::vector<IMAGE> imageV;
+	Player& player;
 
 public:
 	// 设置最近地图页面的方法
 	void setLastMapPage(MenuPage mapPage) { lastMapPage = mapPage; }
 
-	VictoryPage() {
+	VictoryPage(Player &player):player(player) {
 		// 初始化按钮区域
 		buttons.push_back(Button(245, 285, 414, 345)); // 主菜单按钮
 		buttons.push_back(Button(245, 378, 414, 436)); // 章节选择按钮
@@ -853,13 +889,14 @@ public:
 	}
 
 	//根据通关时间展示不同的通关胜利界面
-	void drawV(int& seconds)
+	void drawV(DWORD& seconds)
 	{
-		if (0 <= seconds && seconds <= 15)
+		int temp = seconds / 1000;
+		if (0 <= temp && temp <= 15)
 		{
 			putimage((WINDOW_WIDTH - imageV[0].getwidth()) / 2, (WINDOW_HEIGHT - imageV[0].getheight()) / 2, &imageV[0]);
 		}
-		else if (15 < seconds && seconds <= 30)
+		else if (15 < temp && temp <= 30)
 		{
 			putimage((WINDOW_WIDTH - imageV[1].getwidth()) / 2, (WINDOW_HEIGHT - imageV[1].getheight()) / 2, &imageV[1]);
 		}
@@ -887,8 +924,22 @@ public:
 				currentPage = LEVEL3_STORY; // 进入关卡3剧情页面
 				break;
 			case LEVEL3_MAP:
-				// 如果是关卡3，默认可以回到关卡3剧情
-				currentPage = LEVEL3_STORY;
+			{
+				int treasures = player.getTreasure();//获取玩家得到宝箱的数量
+				switch (treasures)
+				{
+				case 0://当玩家获得宝箱的数量为0时，触发坏结局2
+					currentPage = BADEND2;
+					break;
+				case 1://当玩家获得宝箱的数量为1或者2时，触发坏结局1
+				case 2:
+					currentPage = BADEND1;
+					break;
+				case 3://当玩家获得宝箱的数量为3（全部）时，触发好结局
+					currentPage = GOODEND;
+					break;
+				}
+			}
 				break;
 			default:
 				// 防御性编程：如果意外的值，返回主菜单
@@ -1004,18 +1055,19 @@ public:
 	}
 
 	//记录通关时间
-	void recordclearancetime(int& seconds, MenuPage& LEVEL)
+	void recordclearancetime(DWORD& seconds, MenuPage& LEVEL)
 	{
+		int temp = seconds / 1000;
 		switch (LEVEL)
 		{
 		case LEVEL1_MAP:
-			clearancetime[0] = seconds;
+			clearancetime[0] = temp;
 			break;
 		case LEVEL2_MAP:
-			clearancetime[1] = seconds;
+			clearancetime[1] = temp;
 			break;
 		case LEVEL3_MAP:
-			clearancetime[2] = seconds;
+			clearancetime[2] = temp;
 			break;
 		}
 	}
@@ -1081,14 +1133,67 @@ public:
 
 // 商店界面
 class ShopPage : public Page {
+private:
+	Player &player;
 public:
-	ShopPage() {
+	ShopPage(Player &player):player(player) {
 		buttons.push_back(Button(246, 189, 468, 250)); // 返回按钮
+		buttons.push_back(Button(246, 278, 522, 339)); // 返回按钮
 	}
 
 	void handleClick(int x, int y, MenuPage& currentPage) override {
 		if (buttons[0].isClicked(x, y)) {
 			currentPage = MENU2; // 返回主菜单2
+		}
+		if (buttons[1].isClicked(x, y))
+		{
+			static bool isinvincible = false;//设置静态布尔变量来记录玩家是否开启了无敌模式
+			if (isinvincible)
+			{
+				player.resetTrapDamage(10);
+				isinvincible = false;//重置为不无敌状态并且难度为萌新
+			}
+			else
+			{
+				player.resetTrapDamage(0);
+				isinvincible = true;//重置为无敌状态
+			}
+			
+		}
+
+	}
+};
+
+//好结局界面
+class GoodEndPage : public Page {
+public:
+	GoodEndPage(){
+		buttons.push_back(Button(708, 581, 853, 648)); // 返回主菜单按钮
+		buttons.push_back(Button(869, 581, 1023, 648)); // 团队感言按钮
+	}
+
+	void handleClick(int x, int y, MenuPage& currentPage) override {
+		if (buttons[0].isClicked(x, y)) {
+			currentPage = MENU1; // 返回主菜单1
+		}
+		if (buttons[1].isClicked(x, y))
+		{
+
+		}
+
+	}
+};
+
+//坏结局界面
+class BadEndPage : public Page {
+public:
+	BadEndPage() {
+		buttons.push_back(Button(869, 581, 1023, 648)); // 返回主菜单按钮
+	}
+
+	void handleClick(int x, int y, MenuPage& currentPage) override {
+		if (buttons[0].isClicked(x, y)) {
+			currentPage = MENU1; 
 		}
 	}
 };
@@ -1104,6 +1209,77 @@ public:
 		if (buttons[0].isClicked(x, y)) {
 			currentPage = MENU2; // 返回主菜单2
 		}
+	}
+};
+
+// 关于团队界面
+class PausePage : public Page {
+private:
+	MenuPage lastMapPage = MENU1; // 初始化为 MENU1，避免未初始化的警告
+	bool ispause = false;
+	bool returngame = false;
+	bool returnnogame = false;
+public:
+	PausePage() {
+		buttons.push_back(Button(290, 368, 490, 425)); // 返回主菜单1
+		buttons.push_back(Button(550, 368, 750, 425)); // 设置界面按钮
+		buttons.push_back(Button(810, 368, 1010, 425)); // 返回游戏
+	}
+
+	// 设置最近地图页面的方法
+	void setLastMapPage(MenuPage mapPage) { lastMapPage = mapPage; }
+
+	void handleClick(int x, int y, MenuPage& currentPage) override {
+		if (buttons[0].isClicked(x, y)) {
+			currentPage = MENU1; // 返回主菜单1
+			ispause = false;
+			returnnogame = true;
+		}
+		if (buttons[1].isClicked(x, y)) {
+			currentPage = SETTINGS; // 设置界面按钮
+			ispause = false;
+			returnnogame = true;
+		}
+		if (buttons[2].isClicked(x, y)) {
+			currentPage = lastMapPage; // 返回游戏
+			ispause = false;
+			returngame = true;
+		}
+	}
+
+	//判断是否暂停，并在暂停时输出暂停界面
+	int isPause(MenuPage& currentPage)
+	{
+		if (!ispause)
+		{
+			if (GetAsyncKeyState(27) & 0x8000)
+			{
+				lastMapPage = currentPage;
+				currentPage = PAUSE;
+				ispause = true;
+				returngame = false;
+			}
+			if (returngame)
+			{
+				currentPage = lastMapPage;
+			}
+		}
+		//如果现在处于暂停状态则返回true
+		if (ispause)
+		{
+			return 1;
+		}
+		else if (returngame)
+		{
+			returngame = false;
+			return 0;
+		}
+		else if (returnnogame)
+		{
+			returnnogame = false;
+			return 2;
+		}
+		return 0;
 	}
 };
 
@@ -1133,10 +1309,13 @@ private:
 	FailPage failPage; //失败页面
 	IMAGE treasureclose;//宝箱关闭
 	IMAGE treasureopen;//宝箱打开
-
+	GoodEndPage goodendPage;//好结局页面
+	BadEndPage badend1Page;//坏结局页面1
+	BadEndPage badend2Page;//坏结局页面2
+	PausePage pausePage;//暂停页面
 
 public:
-	Game() : currentPage(MENU1), player(80, 700 - 51), difficulty(player), settings(isMusicOn) {} // 初始化当前页面为主菜单
+	Game() : currentPage(MENU1), player(80, 700 - 51), difficulty(player), settings(isMusicOn),shop(player) ,victoryPage(player){} // 初始化当前页面为主菜单
 
 	// 加载所有页面资源
 	void loadResources() {
@@ -1163,7 +1342,10 @@ public:
 		failPage.loadResources(L"图片资源/失败界面1.png");
 		loadimage(&treasureclose, L"图片资源/宝箱关闭.png", 40, 40);
 		loadimage(&treasureopen, L"图片资源/宝箱打开.png", 40, 40);
-
+		goodendPage.loadResources(L"图片资源/好结局1.png");
+		badend1Page.loadResources(L"图片资源/坏结局1.png");
+		badend2Page.loadResources(L"图片资源/坏结局2.png");
+		pausePage.loadResources(L"图片资源/暂停界面.png");
 	}
 
 	bool isLevelMusicPlaying = false; // 标志位，判断是否在播放地图音乐
@@ -1256,6 +1438,18 @@ public:
 		case FAIL:
 			failPage.draw();
 			break;
+		case GOODEND:
+			goodendPage.draw();
+			break;
+		case BADEND1:
+			badend1Page.draw();
+			break;
+		case BADEND2:
+			badend2Page.draw();
+			break;
+		case PAUSE:
+			pausePage.draw();
+			break;
 		}
 	}
 
@@ -1318,6 +1512,18 @@ public:
 		case FAIL:
 			failPage.handleClick(x, y, currentPage);
 			break;
+		case GOODEND:
+			goodendPage.handleClick(x, y, currentPage);
+			break;
+		case BADEND1:
+			badend1Page.handleClick(x, y, currentPage);
+			break;
+		case BADEND2:
+			badend2Page.handleClick(x, y, currentPage);
+			break;
+		case PAUSE:
+			pausePage.handleClick(x, y, currentPage);
+			break;
 		}
 
 		if (currentPage != previousPage) {
@@ -1335,15 +1541,15 @@ public:
 		}
 	}
 
-	void calculateTimeElapsed(int& seconds, DWORD& startTime, MenuPage& currentPage)
+	void calculateTimeElapsed(DWORD& seconds, DWORD& startTime, MenuPage& currentPage)
 	{
 		if (currentPage == LEVEL1_MAP || currentPage == LEVEL2_MAP || currentPage == LEVEL3_MAP)
 		{
 			// 计算并显示时间  
-			DWORD elapsedTime = GetTickCount() - startTime; // 计算经过的时间  
-			seconds = elapsedTime / 1000; // 转换为秒  
+			seconds = GetTickCount() - startTime; // 计算经过的时间  
+			int temp = seconds / 1000; // 转换为秒  
 			// 在屏幕上显示经过的时间  
-			std::wstring timeText = L"时间: " + std::to_wstring(seconds) + L"秒";
+			std::wstring timeText = L"时间: " + std::to_wstring(temp) + L"秒";
 			outtextxy(10, 10, timeText.c_str()); // 在指定位置绘制时间文本
 		}
 	}
@@ -1358,64 +1564,94 @@ public:
 		leaderboard.updateleaderboard();
 	}
 
+
 	void inTheGame()
 	{
+		levelStarted = false; // 重置关卡开始标志
+		player.resetPosition();
+		timeRecordStart(levelStarted, startTime, currentPage);
+		bool istimerecord = true;//记录是否暂停时已经过去的时间
+		DWORD temptime = 0;//记录暂停时已经过去的时间
 		while (true)
 		{
-			BeginBatchDraw(); // 双缓存  
+			BeginBatchDraw(); // 双缓存 
 			cleardevice();
 			drawCurrentPage();
 			//绘制宝箱
-			for (auto& treasure : *currentTreasureBlocks)
+			int choice = pausePage.isPause(currentPage);//设置变量choice储存暂停判断返回值
+			if (choice == 0)
 			{
-				if (treasure.isclose)
+				if (istimerecord)
 				{
-					putimage(treasure.left, treasure.top, &treasureclose); // 绘制宝箱关闭
+					startTime = GetTickCount() - temptime;
+					istimerecord = false;
 				}
-				else
+				for (auto& treasure : *currentTreasureBlocks)
 				{
-					putimage(treasure.left, treasure.top, &treasureopen); // 绘制宝箱开启
+					if (treasure.isclose)
+					{
+						putimage(treasure.left, treasure.top, &treasureclose); // 绘制宝箱关闭
+					}
+					else
+					{
+						putimage(treasure.left, treasure.top, &treasureopen); // 绘制宝箱开启
+					}
+				}
+				// 关卡开始时记录时间  
+				timeRecordStart(levelStarted, startTime, currentPage);
+				// 计算当前关卡已经过的时间并展示
+				calculateTimeElapsed(seconds, startTime, currentPage);
+				// 更新和绘制玩家  
+				player.update(*currentGroundBlocks, *currentWallBlocks, *currentCeilingBlocks,
+					*currentTrapBlocks, currentTreasureBlocks, *currentHealBlocks, *currentTeleportBlocks);
+				player.draw();
+
+
+				//当玩家生命值小于等于0时，判断关卡通关失败
+				if (player.getHP() <= 0)
+				{
+					failPage.setLastMapPage(currentPage); // 设置当前地图页面   
+					currentVictoryDoor = nullptr; // 重置通关门对象  
+					currentPage = FAIL; // 切换到胜利界面 
+					levelFinish();
+					break;
+				}
+				/*上面的通关失败的判断和下面通关的判断唯一的区别在于levelFinish()的位置不同，
+					levelFinish()的位置不同会导致排行榜是否会记录时间
+				*/
+				// 检查胜利条件  
+				if (player.checkVictory(*currentVictoryDoor)) {
+					victoryPage.setLastMapPage(currentPage); // 设置当前地图页面   
+					currentVictoryDoor = nullptr; // 重置通关门对象
+					levelFinish();
+					currentPage = VICTORY_SCREEN; // 切换到胜利界面
+					break;
+				}
+
+				Sleep(5); // 控制刷新频率 
+			}
+			else if (choice == 1)
+			{
+				if (!istimerecord)
+				{
+					temptime = seconds;
+					istimerecord = true;
 				}
 			}
-			// 关卡开始时记录时间  
-			timeRecordStart(levelStarted, startTime, currentPage);
-			// 计算当前关卡已经过的时间并展示
-			calculateTimeElapsed(seconds, startTime, currentPage);
-			// 更新和绘制玩家  
-			player.update(*currentGroundBlocks, *currentWallBlocks, *currentCeilingBlocks,
-				*currentTrapBlocks, currentTreasureBlocks, *currentHealBlocks, *currentTeleportBlocks);
-			player.draw();
+			else if (choice == 2)
+			{
+				break;
+			}
 
 			// 检查是否有鼠标事件  
 			if (MouseHit()) {
 				MOUSEMSG msg = GetMouseMsg();
 				if (msg.uMsg == WM_LBUTTONDOWN) {
+					handleMouseClick(msg.x, msg.y);
 					std::cout << msg.x << "," << msg.y << std::endl;
 				}
 			}
-
-			//当玩家生命值小于等于0时，判断关卡通关失败
-			if (player.getHP() <= 0)
-			{
-				failPage.setLastMapPage(currentPage); // 设置当前地图页面   
-				currentVictoryDoor = nullptr; // 重置通关门对象  
-				currentPage = FAIL; // 切换到胜利界面 
-				levelFinish();
-				break;
-			}
-			/*上面的通关失败的判断和下面通关的判断唯一的区别在于levelFinish()的位置不同，
-			   levelFinish()的位置不同会导致排行榜是否会记录时间
-			*/
-			// 检查胜利条件  
-			if (player.checkVictory(*currentVictoryDoor)) {
-				victoryPage.setLastMapPage(currentPage); // 设置当前地图页面   
-				currentVictoryDoor = nullptr; // 重置通关门对象
-				levelFinish();
-				currentPage = VICTORY_SCREEN; // 切换到胜利界面
-				break;
-			}
-
-			Sleep(5); // 控制刷新频率  
+			
 			EndBatchDraw();
 		}
 
@@ -1436,6 +1672,8 @@ public:
 				currentTrapBlocks = &level1TrapBlocks;
 				currentVictoryDoor = &level1VictoryDoor;
 				currentTreasureBlocks = &level1TreasureBlocks;
+				currentHealBlocks = &level1HealBlocks; 
+				currentTeleportBlocks = &level1TeleportBlocks; 
 				inTheGame();
 			}
 			else if (currentPage == LEVEL2_MAP) {
@@ -1445,6 +1683,8 @@ public:
 				currentTrapBlocks = &level2TrapBlocks;
 				currentVictoryDoor = &level2VictoryDoor;
 				currentTreasureBlocks = &level2TreasureBlocks;
+				currentHealBlocks = &level2HealBlocks; 
+				currentTeleportBlocks = &level2TeleportBlocks; 
 				inTheGame();
 			}
 			else if (currentPage == LEVEL3_MAP) {
@@ -1466,7 +1706,7 @@ public:
 				MOUSEMSG msg = GetMouseMsg();
 				if (msg.uMsg == WM_LBUTTONDOWN) {
 					handleMouseClick(msg.x, msg.y);
-					//std::cout << msg.x << "," << msg.y << std::endl;
+					std::cout << msg.x << "," << msg.y << std::endl;
 				}
 			}
 			cleardevice(); // 清屏  
@@ -1479,7 +1719,7 @@ public:
 private:
 	// 添加计时相关的变量  
 	DWORD startTime = 0; // 关卡开始时间  
-	int seconds = 0;//记录关卡时间
+	DWORD seconds = 0;//记录关卡时间
 	bool levelStarted = false; // 标记关卡是否已经开始  
 	std::vector<GroundBlock>* currentGroundBlocks = nullptr;
 	std::vector<WallBlock>* currentWallBlocks = nullptr;
